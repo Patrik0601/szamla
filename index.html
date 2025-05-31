@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+  <meta charset="UTF-8">
+  <title>Számlák kezelése</title>
+  <style>
+    table, th, td {
+      border: 1px solid #ccc;
+      border-collapse: collapse;
+      padding: 8px;
+    }
+    input, button {
+      margin: 4px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Számlák</h1>
+  <table id="bill-table">
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Vevő</th>
+        <th>Eladó</th>
+        <th>Számlaszám</th>
+        <th>Létrehozva</th>
+        <th>Fizetve</th>
+        <th>Határidő</th>
+        <th>Összeg</th>
+        <th>ÁFA</th>
+        <th>Műveletek</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <h2>Új számla</h2>
+  <form id="bill-form">
+    <label>Vevő:
+      <select id="buyer_id">
+        <option value="1">Teszt Szolgáltató Kft.</option>
+        <option value="2">Digit-All Solutions Kft.</option>
+        <option value="3">GreenTech Innovációs Zrt.</option>
+      </select>
+    </label>
+    <label>Eladó:
+      <select id="seller_id">
+        <option value="1">Kovács és Társa Kft.</option>
+        <option value="2">Nagy és Fiai Bt.</option>
+        <option value="3">Szabó és Társa Zrt.</option>
+      </select>
+    </label><br> 
+    <input type="text" placeholder="Számlaszám" id="billNumber" required /><br>
+    <label>Létrehozás dátuma:
+      <input type="date" id="created_at" required />
+    </label><br>
+    <label>Fizetés dátuma:
+      <input type="date" id="payed_at" required />
+    </label><br>
+    <label>Határidő:
+      <input type="date" id="deadline_at" required />
+    </label><br>
+    <input type="number" placeholder="Összeg" id="totalAmount" required />
+    <input type="number" placeholder="ÁFA" id="vat" required /><br>
+    <button type="submit">Létrehozás</button>
+  </form>
+
+
+
+  <h2 id="edit-title" style="display: none;">Módosítás</h2>
+  <form id="edit-form" style="display:none;">
+    <input type="hidden" id="edit_id"/>
+    <label>Vevő:
+      <select id="edit_buyer_id">
+        <option value="1">Teszt Szolgáltató Kft.</option>
+        <option value="2">Digit-All Solutions Kft.</option>
+        <option value="3">GreenTech Innovációs Zrt.</option>
+      </select>
+    </label>
+    <label>Eladó:
+      <select id="edit_seller_id">
+        <option value="1">Kovács és Társa Kft.</option>
+        <option value="2">Nagy és Fiai Bt.</option>
+        <option value="3">Szabó és Társa Zrt.</option>
+      </select>
+    </label><br/>
+    <input type="text" placeholder="billNumber" id="edit_billNumber"/><br>
+    <input type="date" placeholder="created_at" id="edit_created_at"/><br>
+    <input type="date" placeholder="payed_at" id="edit_payed_at"/> <br>
+    <input type="date" placeholder="deadline_at" id="edit_deadline_at"/><br>
+    <input type="number" placeholder="totalAmount" id="edit_totalAmount"/><br>
+    <input type="number" placeholder="vat" id="edit_vat"/>
+    <button type="submit">Mentés</button>
+    <button type="button" onclick="cancelEdit()">Mégse</button>
+  </form>
+  
+  <script>
+    function loadBuyersAndSellers() {
+    fetch('http://localhost:8080/buyers')
+      .then(res => res.json())
+      .then(buyers => {
+        const buyerSelects = document.querySelectorAll('.buyer-select');
+        buyerSelects.forEach(select => {
+          select.innerHTML = '';
+          buyers.forEach(buyer => {
+            const option = document.createElement('option');
+            option.value = buyer.id;
+            option.textContent = buyer.name;
+            select.appendChild(option);
+          });
+        });
+      });
+
+    fetch('http://localhost:8080/sellers')
+      .then(res => res.json())
+      .then(sellers => {
+        const sellerSelects = document.querySelectorAll('.seller-select');
+        sellerSelects.forEach(select => {
+          select.innerHTML = '';
+          sellers.forEach(seller => {
+            const option = document.createElement('option');
+            option.value = seller.id;
+            option.textContent = seller.name;
+            select.appendChild(option);
+          });
+        });
+      });
+    }
+  
+    async function loadBills() {
+    try {
+    const res = await fetch('http://localhost:8080/bills');
+    const data = await res.json();
+
+    if (!Array.isArray(data)) {
+      console.error('Nem tömb formátumú válasz:', data);
+      return;
+    }
+
+    const tbody = document.querySelector('#bill-table tbody');
+    tbody.innerHTML = '';
+
+    data.forEach(bill => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${bill.id}</td>
+        <td>${bill.buyer_name}</td>
+        <td>${bill.seller_name}</td>
+        <td>${bill.billNumber}</td>
+        <td>${bill.created_at}</td>
+        <td>${bill.payed_at}</td>
+        <td>${bill.deadline_at}</td>
+        <td>${bill.totalAmount}</td>
+        <td>${bill.vat}</td>
+        <td>
+          <button onclick="showEditForm(${bill.id})">Módosítás</button>
+          <button onclick="deleteBill(${bill.id})">Törlés</button>
+        </td>`;
+      tbody.appendChild(tr);
+    });
+    } catch (error) {
+      console.error('Hiba történt a számlák betöltésekor:', error);
+    }
+  }
+
+
+    async function deleteBill(id) {
+      await fetch(`http://localhost:8080/bills/${id}`, { method: 'DELETE' });
+      loadBills();
+    }
+
+    async function showEditForm(id) {
+      const res = await fetch(`http://localhost:8080/bills/${id}`);
+      const bill = await res.json();
+
+      document.getElementById('edit_id').value = bill.id;
+      document.getElementById('edit_billNumber').value = bill.billNumber;
+      document.getElementById('edit_created_at').value = bill.created_at;
+      document.getElementById('edit_payed_at').value = bill.payed_at;
+      document.getElementById('edit_deadline_at').value = bill.deadline_at;
+      document.getElementById('edit_totalAmount').value = bill.totalAmount;
+      document.getElementById('edit_vat').value = bill.vat;
+      document.getElementById('edit-title').style.display = 'block';
+      document.getElementById('edit-form').style.display = 'block';
+
+      await loadBuyersAndSellers();
+      document.getElementById('edit_buyer_id').value = bill.buyer_id;
+      document.getElementById('edit_seller_id').value = bill.seller_id;
+    }
+
+    function cancelEdit() {
+      document.getElementById('edit-form').reset();
+      document.getElementById('edit-form').style.display = 'none';
+      document.getElementById('edit-title').style.display = 'none';
+    }
+
+    document.getElementById('bill-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const bill = {
+        buyer_id: document.getElementById('buyer_id').value,
+        seller_id: document.getElementById('seller_id').value,
+        billNumber: document.getElementById('billNumber').value,
+        created_at: document.getElementById('created_at').value,
+        payed_at: document.getElementById('payed_at').value,
+        deadline_at: document.getElementById('deadline_at').value,
+        totalAmount: document.getElementById('totalAmount').value,
+        vat: document.getElementById('vat').value
+      };
+      await fetch("http://localhost:8080/bills", {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(bill)
+      });
+      e.target.reset();
+      loadBills();
+    });
+
+    document.getElementById('edit-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const id = document.getElementById('edit_id').value;
+      const bill = {
+        buyer_id: document.getElementById('edit_buyer_id').value,
+        seller_id: document.getElementById('edit_seller_id').value,
+        billNumber: document.getElementById('edit_billNumber').value,
+        created_at: document.getElementById('edit_created_at').value,
+        payed_at: document.getElementById('edit_payed_at').value,
+        deadline_at: document.getElementById('edit_deadline_at').value,
+        totalAmount: document.getElementById('edit_totalAmount').value,
+        vat: document.getElementById('edit_vat').value
+      };
+      await fetch(`http://localhost:8080/bills/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(bill)
+      });
+      cancelEdit();
+    });
+    loadBuyersAndSellers();
+    loadBills();
+  </script>
+</body>
+</html>
